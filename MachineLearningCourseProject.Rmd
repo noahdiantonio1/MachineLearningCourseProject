@@ -9,3 +9,74 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+## Load Packages
+```{r, message = FALSE}
+library(caret)
+library(randomForest)
+```
+
+# 1. Loading Data
+I begin by loading in the data.
+```{r}
+training0 <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+testing0 <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+```
+
+# 2. Exploratory Data Analysis
+Next, I take a look at some basic information about the data.
+```{r}
+dim(training0)
+dim(testing0)
+## summary(training0) ## I looked at the summary, but I have excluded it from the markdown for space reasons
+```
+
+# 3. Data Cleaning
+Then, I clean up the two data frames.
+```{r}
+## Remove first 7, irrelevant rows
+training <- training0[,-c(1:7)]
+testing <- testing0[,-c(1:7)]
+## Convert Empty Values to NA's in training set
+training[training == ""] <- NA
+## Remove totally empty columns from both sets
+training <- training[,colSums(is.na(training)) == 0]
+testing <- testing[,colSums(is.na(testing)) == 0]
+## Make classe into a factor variable
+ training$classe <- as.factor(training$classe)
+## New Data Analysis
+dim(training)
+dim(testing)
+## summary(training)
+```
+
+# 4. Cross-Validation
+I am going to perform cross-validation by splitting the training set into two subsets. 75% of the training set will be used to train the model, but the other 25% will be a "train-test" set which I will use for cross validation. I will try out my different models on this "train-test" set first and pick the best one to apply to the real test set.
+```{r}
+set.seed(135)
+inTrain <- createDataPartition(y = training$classe, p = 0.75, list = FALSE)
+traintrain <- training[inTrain,]
+traintest <- training[-inTrain,]
+```
+
+# 5. Model Selection
+I am going to build three models to test on the "train-test" set. These models are going to use the following methods: Random forest, linear discriminant analysis, and a model combining the two using a LDA. I selected the random forest method for accuracy and the LDA method for computational efficiency. I included a combined model to aim for an even more accurate result.
+```{r, message = FALSE, warning = FALSE}
+set.seed(135)
+rffit <- randomForest(classe ~ ., data = traintrain)
+ldafit<- train(classe ~ ., data = traintrain, method = "lda")
+rfpred <- predict(rffit, traintest)
+ldapred <- predict(ldafit, traintest)
+combineddf <- data.frame(rfpred, ldapred, classe = traintest$classe)
+combinedfit <- train(classe ~ ., data = combineddf, method = "lda")
+combinedpred <- predict(combinedfit, combineddf)
+```
+Now I will look at the accuracy for each model
+```{r}
+confusionMatrix(rfpred, traintest$classe)$overall[1]
+confusionMatrix(ldapred, traintest$classe)$overall[1]
+confusionMatrix(combinedpred, traintest$classe)$overall[1]
+```
+The random forest model performs better than the LDA model, and combining the two does not increase accuracy beyond the random forest model. For that reason, **I select the random forest model** because it is the most accurate and is simpler than the combined model.
+
+# 6. Expected Out of Sample Error
+As reported in the previous section, the randomForest model has an accuracy of 0.996, or 99.6%, when cross-validated with the "train-test" set. Thus, **I expect an out-of-sample error rate of 0.4%.**
