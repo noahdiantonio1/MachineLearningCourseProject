@@ -1,5 +1,5 @@
 ---
-title: "MachineLearningCourseProject"
+title: "index"
 author: "Noah DiAntonio"
 date: "8/12/2021"
 output: html_document
